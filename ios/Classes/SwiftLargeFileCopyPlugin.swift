@@ -14,13 +14,15 @@ public class SwiftLargeFileCopyPlugin: NSObject, FlutterPlugin {
     switch(call.method) {
       case "copyLargeFile":
         guard let args = call.arguments else {
+          result(false)
           return
         }
         if let myArgs = args as? [String: Any],
-          let fileName = myArgs["fileName"] as? String {
-            result(copyDatabaseIfNeeded(fileName: fileName))
+          let sourceFilePath = myArgs["sourceFilePath"] as? String,
+          let distFilePath = myArgs["distFilePath"] as? String {
+            result(copyFileIfNeeded(sourceFilePath: sourceFilePath, distFilePath: distFilePath))
         } else {
-          result("iOS could not extract flutter arguments in method: (copyLargeFile)")
+          result(false)
         } 
       case "getPlatformVersion":
         result("Running on iOS: " + UIDevice.current.systemVersion)
@@ -32,30 +34,23 @@ public class SwiftLargeFileCopyPlugin: NSObject, FlutterPlugin {
 
 // Copy file from bundle to documents folder and return its destination path
 // (only copy if not existing already with same name)
-private func copyDatabaseIfNeeded(fileName: String) -> String {
-    
+private func copyFileIfNeeded(sourceFilePath: String, distFilePath: String) -> Bool {
     let fileManager = FileManager.default
-    let documentsUrl = fileManager.urls(for: .documentDirectory,
+    let documentDirectoryUrls = fileManager.urls(for: .documentDirectory,
                                         in: .userDomainMask)
-    guard documentsUrl.count != 0 else {
-        return "Could not find documents URL"
+    guard documentDirectoryUrls.count != 0 else {
+      return false
     }
-
-    let outputFileURL = documentsUrl.first!.appendingPathComponent(fileName)
-    let filePath = outputFileURL.path
-    if !(fileManager.fileExists(atPath: filePath)) {
-      if !( (try? outputFileURL.checkResourceIsReachable()) ?? false) {
-        let documentsURL = Bundle.main.resourceURL?.appendingPathComponent(fileName)
-        do {
-            try fileManager.copyItem(atPath: (documentsURL?.path)!, toPath: filePath)
-            return "\(filePath)"
-        } catch let error as NSError {
-            return "Couldn't copy file to final location! Error:\(error.description)"
-        }
-      } else {
-        return "\(filePath)"
-      }
-    } else {
-      return "\(filePath)"
+    let outputFileFullUrl = URL(fileURLWithPath: distFilePath)
+    if ( (try? outputFileFullUrl.checkResourceIsReachable()) ?? false) {
+        return true
+    }
+    do {
+      let sourceFileFullUrl = Bundle.main.resourceURL?.appendingPathComponent(sourceFilePath)
+      try fileManager.createDirectory(atPath: NSString(string:distFilePath).deletingLastPathComponent, withIntermediateDirectories: true, attributes: nil)
+      try fileManager.copyItem(atPath: (sourceFileFullUrl?.path)!, toPath: distFilePath)
+      return true
+    } catch _ as NSError {
+      return false
     }
 }

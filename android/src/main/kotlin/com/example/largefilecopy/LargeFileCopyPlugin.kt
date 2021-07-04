@@ -32,11 +32,12 @@ class LargeFileCopyPlugin: MethodCallHandler {
     when (call.method) {
       "copyLargeFile" -> {
         val args = call.arguments as Map<String, Any>
-        val fileName = args["fileName"] as String?
-        if (fileName != null) {
-          result.success(copyDatabaseIfNeeded(fileName))
+        val sourceFilePath = args["sourceFilePath"] as String?
+        val distFilePath = args["distFilePath"] as String?
+        if (sourceFilePath != null && distFilePath != null) {
+          result.success(copyFileIfNeeded(sourceFilePath, distFilePath))
         } else {
-          result.success("Android could not extract flutter arguments in method: (copyLargeFile)")
+          result.success(false)
         } 
       }
       "getPlatformVersion" -> result.success("Running on Android: ${android.os.Build.VERSION.RELEASE}")
@@ -44,16 +45,20 @@ class LargeFileCopyPlugin: MethodCallHandler {
     }
   }
 
-  private fun copyDatabaseIfNeeded(fileName: String): String {
-
-    val assetStream: InputStream = mRegistrar.context().assets.open(fileName)
+  private fun copyFileIfNeeded(sourceFilePath: String, distFilePath: String): Boolean {
     val appliationDocumentsFolderPath: String = PathUtils.getDataDirectory(mRegistrar.context())
-    val outputFilePath: String = appliationDocumentsFolderPath + "/" + fileName
-
-    if (!File(outputFilePath).exists()) {
-      File(outputFilePath).copyInputStreamToFile(assetStream)   
+    val outputFilePath: String = distFilePath
+    val outputFile = File(outputFilePath)
+    val outputFileDirectory = File(outputFile.getParentFile().getName())
+    if(!outputFileDirectory.isDirectory()){
+      outputFileDirectory.mkdirs()
     }
-    return outputFilePath
+    if (outputFile.exists()) {
+      return true;
+    }
+    val assetStream: InputStream = mRegistrar.context().assets.open(sourceFilePath)
+    outputFile.copyInputStreamToFile(assetStream)   
+    return true;
   }
 
   private fun File.copyInputStreamToFile(inputStream: InputStream) {
